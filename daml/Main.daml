@@ -1,0 +1,181 @@
+module Main where
+
+import Daml.Script
+import qualified DA.List as DAList
+
+data Task = Task with
+  name: Text
+  path: Text
+    deriving (Eq, Show)
+
+data Status = 
+  Idle 
+  | Running with task: Task
+    deriving (Eq, Show)
+
+isIdle : Status -> Bool
+isIdle Idle = True
+isIdle (Running _) = False
+
+data ServerKey = ServerKey
+  with
+    server: Party
+    router: Party
+      deriving (Eq, Show)
+
+template Server
+  with
+    router: Party
+    server: Party
+    status: Status
+  where
+    signatory router
+    key ServerKey with
+        server
+        router
+      : ServerKey
+    maintainer key.router
+
+    controller router can
+      SetTask : ContractId Server
+        with
+          task: Task
+        do
+          assertMsg "Can delegate task only to an idle server" (isIdle status)
+          create Server with
+            router
+            server
+            status = Running task
+
+template Router
+  with
+    router: Party
+    servers: [ServerKey]
+  where
+    signatory router
+
+    controller router can
+      AcceptServer : ContractId Router
+        with
+          serverParty: Party
+        do
+          create Server with
+            router
+            server = serverParty
+            status = Idle
+          
+          create Router with
+            router
+            servers = (ServerKey with server=serverParty; router) :: servers
+
+      nonconsuming RunTask : ContractId Server
+        with
+          task: Task
+        do
+          (server, _) <- fetchByKey @Server (DAList.head servers)
+          exercise server SetTask with
+            task
+    
+
+-- template BacktestAnalyst
+--   with
+--     user: Party
+--   where
+--     signatory user
+
+--     controller user can
+--       nonconsuming Schedule: ContractId BacktestDescription
+--         with
+--           router: Router
+--           name: Text
+--           path: Text
+--         do
+--           create BacktestDescription with
+--             user
+--             router
+--             name
+--             path    
+
+-- template BacktestDescription
+--   with
+--     user: Party
+--     router: Router
+--     name: Text
+--     path: Text
+--   where
+--     signatory user
+--     ensure user /= router.router
+
+--     controller user can
+--       BacktestDescription_Cancel : ()
+--         do return ()
+
+--     controller router.router can
+--       BacktestDescription_Reject : ()
+--         do return ()
+
+-- template Backtest
+--   with
+--     user: Party
+--     server: Party
+--     name: Text
+--     path: Text
+--   with
+--     signatory user, server
+    
+
+script_test = do
+  analystParty <- allocateParty "Analyst"
+  routerParty <- allocateParty "J23 DUP-B"
+
+  serverParty1 <- allocateParty "Server1"
+  serverParty2 <- allocateParty "Server2"
+  serverParty3 <- allocateParty "Server3"
+
+  router <-
+    submit routerParty do
+      createCmd Router with
+        router = routerParty
+        servers = []
+
+  router <-
+    submit routerParty do
+      exerciseCmd router AcceptServer with
+        serverParty = serverParty1
+
+  router <-
+    submit routerParty do
+      exerciseCmd router AcceptServer with
+        serverParty = serverParty2
+
+  router <-
+    submit routerParty do
+      exerciseCmd router AcceptServer with
+        serverParty = serverParty3
+
+  _ <-
+    submit routerParty do
+      exerciseCmd router RunTask with
+        task = Task with
+            name = "Task1"
+            path = "/tmp/perfect.lib"
+
+--   analystId <- 
+--     submit analystParty do
+--       createCmd BacktestAnalyst with
+--         user = analystParty
+
+--   backtestDesc <-
+--     submit analystParty do
+--       exerciseCmd analystId Schedule with
+--         router = 
+--           Router with
+--             router = routerParty
+--             servers = [server1, server2, server3]
+--         name = "Perfect Strategy"
+--         path = "C:/temp/strat.dll"
+
+--   submit analystParty do
+--     exerciseCmd backtestDesc BacktestDescription_Cancel
+
+  return ()
