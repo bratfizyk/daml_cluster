@@ -1,7 +1,6 @@
 module Main where
 
 import Daml.Script
-import qualified DA.List as DAList
 
 data Task = Task with
   name: Text
@@ -16,6 +15,9 @@ data Status =
 isIdle : Status -> Bool
 isIdle Idle = True
 isIdle (Running _) = False
+
+isServerIdle : Server -> Bool
+isServerIdle (Server {status=status}) = isIdle status
 
 data ServerKey = ServerKey
   with
@@ -47,6 +49,14 @@ template Server
             server
             status = Running task
 
+      StopTask : ContractId Server
+        do
+          create Server with
+            router
+            server
+            status = Idle
+
+
 template Router
   with
     router: Party
@@ -68,14 +78,18 @@ template Router
             router
             servers = (ServerKey with server=serverParty; router) :: servers
 
+      -- I understand I could return a new Router here every time, but I wanted to experiment with keys instead
       nonconsuming RunTask : ContractId Server
         with
           task: Task
         do
-          (server, _) <- fetchByKey @Server (DAList.head servers)
-          exercise server SetTask with
-            task
-    
+          servers <- mapA (fetchByKey @Server) servers
+          case find (isServerIdle . snd) servers of
+            None -> 
+              error "All the servers are currently busy."
+            Some (serverId, _) ->
+              exercise serverId SetTask with
+                task    
 
 -- template BacktestAnalyst
 --   with
@@ -158,6 +172,20 @@ script_test = do
       exerciseCmd router RunTask with
         task = Task with
             name = "Task1"
+            path = "/tmp/perfect.lib"
+
+  _ <-
+    submit routerParty do
+      exerciseCmd router RunTask with
+        task = Task with
+            name = "Task2"
+            path = "/tmp/perfect.lib"
+
+  _ <-
+    submit routerParty do
+      exerciseCmd router RunTask with
+        task = Task with
+            name = "Task3"
             path = "/tmp/perfect.lib"
 
 --   analystId <- 
