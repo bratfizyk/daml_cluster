@@ -1,95 +1,10 @@
 module Main where
 
+import Server
+import Cluster
+import Types(Task(..))
+
 import Daml.Script
-
-data Task = Task with
-  name: Text
-  path: Text
-    deriving (Eq, Show)
-
-data Status = 
-  Idle 
-  | Running with task: Task
-    deriving (Eq, Show)
-
-isIdle : Status -> Bool
-isIdle Idle = True
-isIdle (Running _) = False
-
-isServerIdle : Server -> Bool
-isServerIdle (Server {status=status}) = isIdle status
-
-data ServerKey = ServerKey
-  with
-    server: Party
-    router: Party
-      deriving (Eq, Show)
-
-template Server
-  with
-    router: Party
-    server: Party
-    status: Status
-  where
-    signatory router
-    key ServerKey with
-        server
-        router
-      : ServerKey
-    maintainer key.router
-
-    controller router can
-      SetTask : ContractId Server
-        with
-          task: Task
-        do
-          assertMsg "Can delegate task only to an idle server" (isIdle status)
-          create Server with
-            router
-            server
-            status = Running task
-
-      StopTask : ContractId Server
-        do
-          create Server with
-            router
-            server
-            status = Idle
-
-
-template Router
-  with
-    router: Party
-    servers: [ServerKey]
-  where
-    signatory router
-
-    controller router can
-      AcceptServer : ContractId Router
-        with
-          serverParty: Party
-        do
-          create Server with
-            router
-            server = serverParty
-            status = Idle
-          
-          create Router with
-            router
-            servers = (ServerKey with server=serverParty; router) :: servers
-
-      -- I understand I could return a new Router here every time, but I wanted to experiment with keys instead
-      nonconsuming RunTask : ContractId Server
-        with
-          task: Task
-        do
-          servers <- mapA (fetchByKey @Server) servers
-          case find (isServerIdle . snd) servers of
-            None -> 
-              error "All the servers are currently busy."
-            Some (serverId, _) ->
-              exercise serverId SetTask with
-                task    
 
 -- template BacktestAnalyst
 --   with
@@ -136,57 +51,70 @@ template Router
 --     path: Text
 --   with
 --     signatory user, server
+
+addToCluster(serverParty, clusterParty, cluster) = do
+  serverId <-
+    submit serverParty do
+      createCmd Server with
+        machine = serverParty
+
+  requestId <-
+    submit serverParty do
+      exerciseCmd serverId RequestJoin with
+        clusterHead = clusterParty
+
+  submit clusterParty do
+    exerciseCmd cluster ClusterJoinRequest_Approve
+      with
+        joinRequestId = requestId
     
 
 script_test = do
   analystParty <- allocateParty "Analyst"
-  routerParty <- allocateParty "J23 DUP-B"
+  clusterParty <- allocateParty "J23 DUP-B"
 
-  serverParty1 <- allocateParty "Server1"
-  serverParty2 <- allocateParty "Server2"
-  serverParty3 <- allocateParty "Server3"
+  machineParty1 <- allocateParty "Server1"
+  machineParty2 <- allocateParty "Server2"
+  machineParty3 <- allocateParty "Server3"
 
-  router <-
-    submit routerParty do
-      createCmd Router with
-        router = routerParty
-        servers = []
+  cluster <-
+    submit clusterParty do
+      createCmd Cluster with
+        clusterHead = clusterParty
+        workers = []
 
-  router <-
-    submit routerParty do
-      exerciseCmd router AcceptServer with
-        serverParty = serverParty1
-
-  router <-
-    submit routerParty do
-      exerciseCmd router AcceptServer with
-        serverParty = serverParty2
-
-  router <-
-    submit routerParty do
-      exerciseCmd router AcceptServer with
-        serverParty = serverParty3
+  cluster <- addToCluster(machineParty1, clusterParty, cluster)
+  cluster <- addToCluster(machineParty2, clusterParty, cluster)
+  cluster <- addToCluster(machineParty3, clusterParty, cluster)
 
   _ <-
-    submit routerParty do
-      exerciseCmd router RunTask with
-        task = Task with
-            name = "Task1"
-            path = "/tmp/perfect.lib"
+    submit clusterParty do
+      exerciseCmd cluster RunTask
+        with
+          task = Task with
+              name = "Task1"
+              path = "/tmp/perfect.lib"
 
-  _ <-
-    submit routerParty do
-      exerciseCmd router RunTask with
-        task = Task with
-            name = "Task2"
-            path = "/tmp/perfect.lib"
+  -- _ <-
+  --   submit routerParty do
+  --     exerciseCmd router RunTask with
+  --       task = Task with
+  --           name = "Task1"
+  --           path = "/tmp/perfect.lib"
 
-  _ <-
-    submit routerParty do
-      exerciseCmd router RunTask with
-        task = Task with
-            name = "Task3"
-            path = "/tmp/perfect.lib"
+  -- _ <-
+  --   submit routerParty do
+  --     exerciseCmd router RunTask with
+  --       task = Task with
+  --           name = "Task2"
+  --           path = "/tmp/perfect.lib"
+
+  -- _ <-
+  --   submit routerParty do
+  --     exerciseCmd router RunTask with
+  --       task = Task with
+  --           name = "Task3"
+  --           path = "/tmp/perfect.lib"
 
 --   analystId <- 
 --     submit analystParty do

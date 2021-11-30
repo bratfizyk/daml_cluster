@@ -1,0 +1,44 @@
+module Cluster where
+
+import Server
+import Types (Task(..))
+
+import Utils(isIdle)
+
+isServerIdle : Worker -> Bool
+isServerIdle (Worker {status=status}) = isIdle status
+
+template Cluster
+  with
+    clusterHead: Party
+    workers: [WorkerKey]
+  where
+    signatory clusterHead
+    ensure all (\w -> w.clusterHead == clusterHead) workers
+
+    controller clusterHead can
+      ClusterJoinRequest_Approve : ContractId Cluster
+        with
+          joinRequestId: ContractId ClusterJoinRequest
+        do
+          request <- fetch joinRequestId
+          let machineParty = request.server.machine
+
+          exercise joinRequestId JoinRequest_Accept
+          
+          create Cluster with
+            clusterHead
+            workers = (WorkerKey with serverMachine=machineParty; clusterHead) :: workers
+
+      -- I understand I could return a new Router here every time, but I wanted to experiment with keys instead
+      nonconsuming RunTask : ContractId Worker
+        with
+          task: Task
+        do
+          workersData <- mapA (fetchByKey @Worker) workers
+          case find (isServerIdle . snd) workersData of
+            None -> 
+              error "All the servers are currently busy."
+            Some (serverId, _) ->
+              exercise serverId SetTask with
+                task    

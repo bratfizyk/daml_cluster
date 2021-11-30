@@ -1,0 +1,71 @@
+module Server where
+
+import Types(Status(..), Task)
+import Utils(isIdle)
+
+template Server
+  with
+    machine: Party
+  where
+    signatory machine
+
+    controller machine can
+      nonconsuming RequestJoin: ContractId ClusterJoinRequest
+        with clusterHead: Party
+        do create ClusterJoinRequest with
+            server = this
+            clusterHead
+
+
+template ClusterJoinRequest
+  with
+    server: Server
+    clusterHead: Party
+  where
+    signatory server.machine
+
+    controller clusterHead can
+      JoinRequest_Accept: ContractId Worker
+        do 
+          create Worker with
+            clusterHead
+            server
+            status = Idle
+        
+
+data WorkerKey = WorkerKey
+  with
+    serverMachine: Party
+    clusterHead: Party
+      deriving (Eq, Show)
+
+template Worker
+  with
+    clusterHead: Party
+    server: Server
+    status: Status
+  where
+    signatory clusterHead, server.machine
+    key WorkerKey with
+        serverMachine = server.machine
+        clusterHead
+      : WorkerKey
+    maintainer key.clusterHead
+
+    controller clusterHead can
+      SetTask : ContractId Worker
+        with
+          task: Task
+        do
+          assertMsg "Can delegate task only to an idle server" (isIdle status)
+          create Worker with
+            clusterHead
+            server
+            status = Running task
+
+      StopTask : ContractId Worker
+        do
+          create Worker with
+            clusterHead
+            server
+            status = Idle

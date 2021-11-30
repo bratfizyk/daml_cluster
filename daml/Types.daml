@@ -1,0 +1,11 @@
+module Types where
+
+data Task = Task with
+  name: Text
+  path: Text
+    deriving (Eq, Show)
+
+data Status = 
+  Idle 
+  | Running with task: Task
+    deriving (Eq, Show)
