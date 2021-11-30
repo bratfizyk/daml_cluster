@@ -89,32 +89,24 @@ script_test = do
 
   _ <-
     submit clusterParty do
-      exerciseCmd cluster RunTask
-        with
-          task = Task with
-              name = "Task1"
-              path = "/tmp/perfect.lib"
+      exerciseCmd cluster RunTask with
+        task = Task with
+            name = "Task1"
+            path = "/tmp/perfect.lib"
 
-  -- _ <-
-  --   submit routerParty do
-  --     exerciseCmd router RunTask with
-  --       task = Task with
-  --           name = "Task1"
-  --           path = "/tmp/perfect.lib"
+  _ <-
+    submit clusterParty do
+      exerciseCmd cluster RunTask with
+        task = Task with
+            name = "Task2"
+            path = "/tmp/perfect.lib"
 
-  -- _ <-
-  --   submit routerParty do
-  --     exerciseCmd router RunTask with
-  --       task = Task with
-  --           name = "Task2"
-  --           path = "/tmp/perfect.lib"
-
-  -- _ <-
-  --   submit routerParty do
-  --     exerciseCmd router RunTask with
-  --       task = Task with
-  --           name = "Task3"
-  --           path = "/tmp/perfect.lib"
+  _ <-
+    submit clusterParty do
+      exerciseCmd cluster RunTask with
+        task = Task with
+            name = "Task3"
+            path = "/tmp/perfect.lib"
 
 --   analystId <- 
 --     submit analystParty do
