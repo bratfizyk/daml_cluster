@@ -1,7 +1,15 @@
 module Server where
 
-import Types(Status(..), Task)
-import Utils(isIdle)
+import Task
+
+data Status = 
+  Idle 
+  | Running with task: Task
+    deriving (Eq, Show)
+
+isIdle : Status -> Bool
+isIdle Idle = True
+isIdle (Running _) = False
 
 template Server
   with
@@ -31,7 +39,7 @@ template ClusterJoinRequest
             clusterHead
             server
             status = Idle
-        
+            observers = []
 
 data WorkerKey = WorkerKey
   with
@@ -44,6 +52,7 @@ template Worker
     clusterHead: Party
     server: Server
     status: Status
+    observers: [Party]
   where
     signatory clusterHead, server.machine
     key WorkerKey with
@@ -51,17 +60,26 @@ template Worker
         clusterHead
       : WorkerKey
     maintainer key.clusterHead
+    observer observers
 
     controller clusterHead can
-      SetTask : ContractId Worker
+      Worker_AssignTask : ContractId Worker
         with
-          task: Task
+          backtest: ContractId PendingBacktest
         do
-          assertMsg "Can delegate task only to an idle server" (isIdle status)
+          assertMsg "Can accept task only as an idle worker" (isIdle status)
+
+          reassignedBacktest <-
+            exercise backtest PendingBacktest_Reassign
+              with
+                newAssignee = server.machine
+          
+          task <- exercise reassignedBacktest PendingBacktest_Accept
           create Worker with
             clusterHead
             server
             status = Running task
+            observers = [task.user]
 
       StopTask : ContractId Worker
         do
@@ -69,3 +87,4 @@ template Worker
             clusterHead
             server
             status = Idle
+            observers = []

@@ -1,9 +1,7 @@
 module Cluster where
 
 import Server
-import Types (Task(..))
-
-import Utils(isIdle)
+import Task(PendingBacktest(..))
 
 isServerIdle : Worker -> Bool
 isServerIdle (Worker {status=status}) = isIdle status
@@ -31,14 +29,15 @@ template Cluster
             workers = (WorkerKey with serverMachine=machineParty; clusterHead) :: workers
 
       -- I understand I could return a new Router here every time, but I wanted to experiment with keys instead
-      nonconsuming RunTask : ContractId Worker
+      nonconsuming PendingBacktest_Assign : ContractId Worker
         with
-          task: Task
+          backtest: ContractId PendingBacktest
         do
           workersData <- mapA (fetchByKey @Worker) workers
           case find (isServerIdle . snd) workersData of
             None -> 
               error "All the servers are currently busy."
             Some (serverId, _) ->
-              exercise serverId SetTask with
-                task    
+              do
+                exercise serverId Worker_AssignTask with
+                  backtest

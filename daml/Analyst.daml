@@ -1,0 +1,20 @@
+module Analyst where
+
+import Task
+
+template Analyst
+  with
+    user: Party
+  where
+    signatory user
+
+    controller user can
+      nonconsuming PendingBacktest_Schedule: ContractId PendingBacktest
+        with
+          clusterHead: Party
+          name: Text
+          path: Text
+        do
+          create PendingBacktest with
+            task = Task with ..
+            assignee = clusterHead

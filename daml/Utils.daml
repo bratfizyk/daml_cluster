@@ -1,7 +1,0 @@
-module Utils where
-
-import Types(Status(..))
-
-isIdle : Status -> Bool
-isIdle Idle = True
-isIdle (Running _) = False

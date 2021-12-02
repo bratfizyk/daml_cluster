@@ -1,0 +1,30 @@
+module Task where
+
+data Task = Task with
+  user: Party
+  name: Text
+  path: Text
+    deriving (Eq, Show)
+
+template PendingBacktest
+  with
+    task: Task
+    assignee: Party
+  where
+    signatory task.user
+
+    controller task.user can
+      PendingBacktest_Cancel : ()
+        do return ()
+
+    controller assignee can
+      PendingBacktest_Reassign : ContractId PendingBacktest
+        with
+          newAssignee: Party
+        do
+          create PendingBacktest with
+            task
+            assignee = newAssignee
+
+      PendingBacktest_Accept : Task
+        do return task

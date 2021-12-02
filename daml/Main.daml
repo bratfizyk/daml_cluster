@@ -1,56 +1,10 @@
 module Main where
 
+import Analyst
 import Server
 import Cluster
-import Types(Task(..))
 
 import Daml.Script
-
--- template BacktestAnalyst
---   with
---     user: Party
---   where
---     signatory user
-
---     controller user can
---       nonconsuming Schedule: ContractId BacktestDescription
---         with
---           router: Router
---           name: Text
---           path: Text
---         do
---           create BacktestDescription with
---             user
---             router
---             name
---             path    
-
--- template BacktestDescription
---   with
---     user: Party
---     router: Router
---     name: Text
---     path: Text
---   where
---     signatory user
---     ensure user /= router.router
-
---     controller user can
---       BacktestDescription_Cancel : ()
---         do return ()
-
---     controller router.router can
---       BacktestDescription_Reject : ()
---         do return ()
-
--- template Backtest
---   with
---     user: Party
---     server: Party
---     name: Text
---     path: Text
---   with
---     signatory user, server
 
 addToCluster(serverParty, clusterParty, cluster) = do
   serverId <-
@@ -67,7 +21,6 @@ addToCluster(serverParty, clusterParty, cluster) = do
     exerciseCmd cluster ClusterJoinRequest_Approve
       with
         joinRequestId = requestId
-    
 
 script_test = do
   analystParty <- allocateParty "Analyst"
@@ -76,6 +29,11 @@ script_test = do
   machineParty1 <- allocateParty "Server1"
   machineParty2 <- allocateParty "Server2"
   machineParty3 <- allocateParty "Server3"
+
+  analyst <- 
+    submit analystParty do
+      createCmd Analyst with
+        user = analystParty
 
   cluster <-
     submit clusterParty do
@@ -87,43 +45,26 @@ script_test = do
   cluster <- addToCluster(machineParty2, clusterParty, cluster)
   cluster <- addToCluster(machineParty3, clusterParty, cluster)
 
-  _ <-
-    submit clusterParty do
-      exerciseCmd cluster RunTask with
-        task = Task with
-            name = "Task1"
-            path = "/tmp/perfect.lib"
+  task1 <-
+    submit analystParty do
+      exerciseCmd analyst PendingBacktest_Schedule with
+        clusterHead = clusterParty
+        name = "Task1"
+        path = "/bin/tmp/lib.so"
 
-  _ <-
-    submit clusterParty do
-      exerciseCmd cluster RunTask with
-        task = Task with
-            name = "Task2"
-            path = "/tmp/perfect.lib"
+  task2 <-
+    submit analystParty do
+      exerciseCmd analyst PendingBacktest_Schedule with
+        clusterHead = clusterParty
+        name = "Task2"
+        path = "/bin/tmp/lib2.so"
 
-  _ <-
-    submit clusterParty do
-      exerciseCmd cluster RunTask with
-        task = Task with
-            name = "Task3"
-            path = "/tmp/perfect.lib"
+  submit clusterParty do
+    exerciseCmd cluster PendingBacktest_Assign with
+      backtest = task1
 
---   analystId <- 
---     submit analystParty do
---       createCmd BacktestAnalyst with
---         user = analystParty
-
---   backtestDesc <-
---     submit analystParty do
---       exerciseCmd analystId Schedule with
---         router = 
---           Router with
---             router = routerParty
---             servers = [server1, server2, server3]
---         name = "Perfect Strategy"
---         path = "C:/temp/strat.dll"
-
---   submit analystParty do
---     exerciseCmd backtestDesc BacktestDescription_Cancel
+  submit clusterParty do
+    exerciseCmd cluster PendingBacktest_Assign with
+      backtest = task2
 
   return ()
