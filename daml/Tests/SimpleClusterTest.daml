@@ -26,7 +26,7 @@ addToCluster(serverParty, clusterParty, cluster) = scenario do
 simpleClusterTest = scenario do
   aliceParty <- getParty "Alice"
   bobParty <- getParty "Bob"
-  clusterParty <- getParty "J23 DUP-B"
+  clusterParty <- getParty "C3-D2"
 
   machineParty1 <- getParty "Server1"
   machineParty2 <- getParty "Server2"
@@ -73,6 +73,11 @@ simpleClusterTest = scenario do
         clusterHead = clusterParty
         name = "Task3"
         path = "/bin/tmp/lib3.so"
+
+  -- a server can't grab a task without clusterHead's approval
+  submitMustFail machineParty1 do
+    exercise cluster PendingBacktest_Assign with
+      backtest = task1
 
   workerTask1 <-
     submit clusterParty do

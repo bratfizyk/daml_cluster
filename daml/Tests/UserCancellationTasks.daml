@@ -1,0 +1,38 @@
+module Tests.UserCancellationTasks where
+
+import Analyst
+import Task
+
+userCancellationTasks = scenario do
+  aliceParty <- getParty "Alice"
+  bobParty <- getParty "Bob"
+  clusterParty <- getParty "R2-3PO"
+
+  analystAlice <- 
+    submit aliceParty do
+      create Analyst with
+        user = aliceParty
+
+  -- Bob can't submit a backtest using Alice's identity
+  submitMustFail bobParty do
+    exercise analystAlice PendingBacktest_Schedule with
+      clusterHead = clusterParty
+      name = "Task1"
+      path = "/bin/tmp/lib.so"
+
+  task1 <-
+    submit aliceParty do
+      exercise analystAlice PendingBacktest_Schedule with
+        clusterHead = clusterParty
+        name = "Task1"
+        path = "/bin/tmp/lib.so"
+
+  -- Bob can't cancel Alice's PendingTask
+  submitMustFail bobParty do
+    exercise task1 PendingBacktest_Cancel
+
+  -- Alice can cancel her task
+  submit aliceParty do
+    exercise task1 PendingBacktest_Cancel
+
+  return ()

@@ -24,7 +24,6 @@ template Server
             server = this
             clusterHead
 
-
 template ClusterJoinRequest
   with
     server: Server
