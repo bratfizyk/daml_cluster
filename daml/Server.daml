@@ -62,6 +62,23 @@ template Worker
     maintainer key.clusterHead
     observer observers
 
+    controller server.machine can
+      Worker_TaskFinished : ContractId Worker
+        do
+          assertMsg "Can only finish a task after it's scheduled" (not $ isIdle status)
+          let (Running task) = status
+          
+          create BacktestResult with
+            task
+            result = Success "42"
+            executedBy = server.machine
+
+          create Worker with
+            clusterHead
+            server
+            status = Idle
+            observers = []
+          
     controller clusterHead can
       Worker_AssignTask : ContractId Worker
         with
@@ -81,10 +98,21 @@ template Worker
             status = Running task
             observers = [task.user]
 
-      StopTask : ContractId Worker
+      Worker_StopTask : ContractId Worker
         do
+          assertMsg "Can only stop a task after it's scheduled" (not $ isIdle status)
+          let (Running task) = status
+          
+          create BacktestResult with
+            task
+            result = Terminated
+            executedBy = server.machine
+
           create Worker with
             clusterHead
             server
             status = Idle
             observers = []
+
+      nonconsuming Worker_GetParty : Party
+        do return server.machine

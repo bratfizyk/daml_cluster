@@ -23,10 +23,10 @@ template Cluster
           let machineParty = request.server.machine
 
           exercise joinRequestId JoinRequest_Accept
-          
+
           create Cluster with
             clusterHead
-            workers = (WorkerKey with serverMachine=machineParty; clusterHead) :: workers
+            workers = reverse $ (WorkerKey with serverMachine=machineParty; clusterHead) :: reverse workers
 
       -- I understand I could return a new Router here every time, but I wanted to experiment with keys instead
       nonconsuming PendingBacktest_Assign : ContractId Worker

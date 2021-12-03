@@ -23,17 +23,23 @@ addToCluster(serverParty, clusterParty, cluster) = do
         joinRequestId = requestId
 
 script_test = do
-  analystParty <- allocateParty "Analyst"
+  aliceParty <- allocateParty "Alice"
+  bobParty <- allocateParty "Bob"
   clusterParty <- allocateParty "J23 DUP-B"
 
   machineParty1 <- allocateParty "Server1"
   machineParty2 <- allocateParty "Server2"
   machineParty3 <- allocateParty "Server3"
 
-  analyst <- 
-    submit analystParty do
+  analystAlice <- 
+    submit aliceParty do
       createCmd Analyst with
-        user = analystParty
+        user = aliceParty
+
+  analystBob <-
+    submit bobParty do
+      createCmd Analyst with
+        user = bobParty
 
   cluster <-
     submit clusterParty do
@@ -46,25 +52,56 @@ script_test = do
   cluster <- addToCluster(machineParty3, clusterParty, cluster)
 
   task1 <-
-    submit analystParty do
-      exerciseCmd analyst PendingBacktest_Schedule with
+    submit aliceParty do
+      exerciseCmd analystAlice PendingBacktest_Schedule with
         clusterHead = clusterParty
         name = "Task1"
         path = "/bin/tmp/lib.so"
 
   task2 <-
-    submit analystParty do
-      exerciseCmd analyst PendingBacktest_Schedule with
+    submit bobParty do
+      exerciseCmd analystBob PendingBacktest_Schedule with
         clusterHead = clusterParty
         name = "Task2"
         path = "/bin/tmp/lib2.so"
 
-  submit clusterParty do
-    exerciseCmd cluster PendingBacktest_Assign with
-      backtest = task1
+  task3 <-
+    submit bobParty do
+      exerciseCmd analystBob PendingBacktest_Schedule with
+        clusterHead = clusterParty
+        name = "Task3"
+        path = "/bin/tmp/lib3.so"
+
+  workerTask1 <-
+    submit clusterParty do
+      exerciseCmd cluster PendingBacktest_Assign with
+        backtest = task1
+
+  workerTask2 <-
+    submit clusterParty do
+      exerciseCmd cluster PendingBacktest_Assign with
+        backtest = task2
+
+  workerTask3 <-
+    submit clusterParty do
+      exerciseCmd cluster PendingBacktest_Assign with
+        backtest = task3
+
+  partyForTask1Worker <-
+    submit clusterParty do
+      exerciseCmd workerTask1 Worker_GetParty
+
+  partyForTask2Worker <-
+    submit clusterParty do
+      exerciseCmd workerTask2 Worker_GetParty
+
+  submit partyForTask1Worker do
+    exerciseCmd workerTask1 Worker_TaskFinished
+
+  submit partyForTask2Worker do
+    exerciseCmd workerTask2 Worker_TaskFinished
 
   submit clusterParty do
-    exerciseCmd cluster PendingBacktest_Assign with
-      backtest = task2
+    exerciseCmd workerTask3 Worker_StopTask
 
   return ()

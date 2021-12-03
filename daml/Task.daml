@@ -6,6 +6,11 @@ data Task = Task with
   path: Text
     deriving (Eq, Show)
 
+data TaskResult =
+  Terminated
+  | Success Text
+    deriving (Eq, Show)
+
 template PendingBacktest
   with
     task: Task
@@ -28,3 +33,13 @@ template PendingBacktest
 
       PendingBacktest_Accept : Task
         do return task
+
+template BacktestResult
+  with
+    task: Task
+    result: TaskResult
+    executedBy: Party
+  where
+    signatory executedBy
+    observer task.user
+    
