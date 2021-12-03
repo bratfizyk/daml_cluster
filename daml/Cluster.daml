@@ -12,7 +12,7 @@ template Cluster
     workers: [WorkerKey]
   where
     signatory clusterHead
-    ensure all (\w -> w.clusterHead == clusterHead) workers
+    ensure all (\w -> (w.serverMachine /= clusterHead) && (w.clusterHead == clusterHead)) workers
 
     controller clusterHead can
       ClusterJoinRequest_Approve : ContractId Cluster

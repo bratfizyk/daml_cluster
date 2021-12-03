@@ -55,6 +55,7 @@ template Worker
     observers: [Party]
   where
     signatory clusterHead, server.machine
+    ensure clusterHead /= server.machine
     key WorkerKey with
         serverMachine = server.machine
         clusterHead
